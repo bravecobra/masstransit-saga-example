@@ -1,0 +1,35 @@
+@startuml eventdiagram
+
+node OrderGenerator
+queue sagas_demo_order_generator
+rectangle OrderProcessingTopic
+sagas_demo_order_generator .. OrderGenerator : IOrderProcessed
+OrderGenerator ..> OrderProcessingTopic: IOrderSubmitted
+
+node OrderProcessor
+queue sagas_demo_order_processor
+database mongodb
+OrderProcessor -right-> mongodb: store state
+OrderProcessingTopic -> sagas_demo_order_processor: exchange bind
+sagas_demo_order_processor .. OrderProcessor: IOrderSubmitted
+
+node Cashier
+queue sagas_demo_cashier
+sagas_demo_cashier .. Cashier: IProcessPayment
+
+node WareHouse
+queue sagas_demo_warehouse
+sagas_demo_warehouse .. WareHouse: IReserveStock
+
+node Dispatcher
+queue sagas_demo_dispatcher
+sagas_demo_dispatcher .. Dispatcher: IShipOrder
+
+Cashier ..> OrderProcessingTopic: IPaymentProcessed
+WareHouse ..> OrderProcessingTopic: IStockReserved
+Dispatcher ..> OrderProcessingTopic: IOrderShipped
+OrderProcessor --> sagas_demo_warehouse: IReserveStock
+OrderProcessor --> sagas_demo_cashier: IProcessPayment
+OrderProcessor --> sagas_demo_dispatcher: IShipOrder
+OrderProcessor ..> sagas_demo_order_generator: IOrderProcessed
+@enduml

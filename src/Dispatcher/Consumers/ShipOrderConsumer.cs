@@ -17,7 +17,7 @@ namespace Dispatcher.Consumers
         }
         public async Task Consume(ConsumeContext<IShipOrder> context)
         {
-            _logger.LogInformation($"Shipt order received {context.Message.CorrelationId}");
+            _logger.LogInformation($"Shipped order received {context.Message.CorrelationId}");
             await Task.Delay(2000);
             this.UpdateOrderState(context.Message.Order);
             await context.Publish<IOrderShipped>(new

@@ -53,23 +53,5 @@ namespace SagasDemo.OrderGenerator
                 .AddHostedService<BusService>()
                 .AddHostedService<ConsoleApplication>();
         }
-
-        // private static Task GenerateOrders(IServiceProvider provider, CancellationToken cancellationToken)
-        // {
-        //     Console.WriteLine("Enter to send..");
-        //     Console.ReadLine();
-        //
-        //     var bus = provider.GetRequiredService<IBusControl>();
-        //
-        //     while (!cancellationToken.IsCancellationRequested)
-        //     {             
-        //         var order = Services.OrderGenerator.Currrent.Generate();
-        //         bus.Publish<IOrderSubmitted>(new { CorrelationId = Guid.NewGuid(), Order = order }, cancellationToken);
-        //         Console.WriteLine(order.ToString());
-        //         Console.ReadLine();
-        //     }
-        //
-        //     return Task.CompletedTask;
-        // }
     }
 }
