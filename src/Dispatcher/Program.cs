@@ -1,57 +1,48 @@
-﻿using Common.Logging;
-using Common.Logging.Configuration;
-using Common.Logging.NLog;
-using MassTransit;
-using MassTransit.Util;
-using SagasDemo.Dispatcher.Consumers;
-using System;
+﻿using System;
 using System.Configuration;
+using System.Threading.Tasks;
+using Dispatcher.Consumers;
+using MassTransit;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
-namespace SagasDemo.Dispatcher
+namespace Dispatcher
 {
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            Console.WriteLine("Starting dispatcher");
-            ConfigureLogger();
-            ConfigureAndStartBus();
-            Console.WriteLine("Press any key to close...");
-            Console.ReadKey();
-        }
-        private static void ConfigureLogger()
-        {
-            var settings = new NameValueCollection
-                {
-                        { "configType", "FILE" },
-                        { "configFile", "~/Dispatcher.exe.nlog" }
-                };
-            LogManager.Adapter = new NLogLoggerFactoryAdapter(settings);
-            MassTransit.NLogIntegration.Logging.NLogLogger.Use();
+            await Host.CreateDefaultBuilder(args)
+                .ConfigureLogging(builder => builder.AddConsole().AddDebug())
+                .ConfigureServices((hostContext, services) => { ConfigureServices(services, hostContext); })
+                .RunConsoleAsync();
         }
 
-        private static void ConfigureAndStartBus()
+        private static void ConfigureServices(IServiceCollection services, HostBuilderContext hostContext)
         {
-            var rabbitHost = new Uri(ConfigurationManager.AppSettings["rabbitHost"]);
-            var user = ConfigurationManager.AppSettings["rabbitUser"];
-            var password = ConfigurationManager.AppSettings["rabbitPassword"];
-            var inputQueue = ConfigurationManager.AppSettings["rabbitInputQueue"];
-            var bus = MassTransit.Bus.Factory.CreateUsingRabbitMq(configurator =>
-            {                
-                var host = configurator.Host(rabbitHost, h =>
+            services
+                .AddOptions()
+                .Configure<RabbitMqOptions>(options =>
+                    hostContext.Configuration.GetSection("RabbitMQ").Bind(options))
+                .AddMassTransit(x =>
                 {
-                    h.Username(user);
-                    h.Password(password);
-                });
-
-                configurator.ReceiveEndpoint(host, inputQueue, c =>
-                {
-                    c.Consumer(() => new ShipOrderConsumer());
-                });
-            });
-
-           TaskUtil.Await<BusHandle>(() => bus.StartAsync());      
+                    x.AddConsumer<ShipOrderConsumer>();
+                    x.AddBus(provider => Bus.Factory.CreateUsingRabbitMq(cfg =>
+                    {
+                        var settings = provider.GetRequiredService<IOptions<RabbitMqOptions>>();
+                        var rabbitmqSettings = settings.Value;
+                        cfg.Host(rabbitmqSettings.Host, h =>
+                        {
+                            h.Username(rabbitmqSettings.User);
+                            h.Password(rabbitmqSettings.Password);
+                        });
+                        cfg.ReceiveEndpoint(rabbitmqSettings.InputQueue, e => { e.ConfigureConsumer<ShipOrderConsumer>(provider); });
+                    }));
+                })
+                .AddHostedService<BusService>();
         }
-
     }
 }

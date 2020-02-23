@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics.Contracts;
-using System.Text;
 
-namespace SagasDemo.Generator.Services
+namespace SagasDemo.OrderGenerator.Services
 {
     public static class OrderGenerator
     {

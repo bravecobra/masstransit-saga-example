@@ -1,64 +1,71 @@
-﻿using Automatonymous;
-using Automatonymous.Binders;
-using Common.Logging;
-using SagasDemo.Commands;
-using SagasDemo.Events;
-using SagasDemo.OrderProcessor.Events;
-using SagasDemo.OrderProcessor.State;
-using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Text;
+﻿using System;
 using System.Threading.Tasks;
+using Automatonymous;
+using Automatonymous.Binders;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OrderProcessor.Events;
+using OrderProcessor.State;
+using ServiceModel;
+using ServiceModel.Commands;
+using ServiceModel.DTOs;
+using ServiceModel.Events;
 using SagaState = Automatonymous.State;
-namespace SagasDemo.OrderProcessor.Services
+namespace OrderProcessor.Services
 {
-    public class OrderProcessorStateMachine : MassTransitStateMachine<ProcessingOrderState>
+    public sealed class OrderProcessorStateMachine : MassTransitStateMachine<ProcessingOrderState>
     {
-        private readonly ILog logger;
+        private readonly ILogger<OrderProcessorStateMachine> _logger;
+        private readonly RabbitMqOptions _rabbitmqOptions;
 
-        public OrderProcessorStateMachine()
+        public OrderProcessorStateMachine(ILogger<OrderProcessorStateMachine> logger, IOptions<RabbitMqOptions> rabbitmqOptions)
         {
-            this.logger = LogManager.GetLogger<OrderProcessorStateMachine>();
-            this.InstanceState(x => x.State);
-            this.State(() => this.Processing);
-            this.ConfigureCorrelationIds();
-            this.Initially(this.SetOrderSummitedHandler());
-            this.During(Processing, this.SetStockReservedHandler(), SetPaymentProcessedHandler(), SetOrderShippedHandler());
+            _logger = logger;
+            _rabbitmqOptions = rabbitmqOptions.Value;
+            InstanceState(x => x.State);
+            State(() => Processing);
+            ConfigureCorrelationIds();
+            Initially(SetOrderSummitedHandler());
+            During(Processing, SetStockReservedHandler(), SetPaymentProcessedHandler(), SetOrderShippedHandler());
             SetCompletedWhenFinalized();
         }
 
         private void ConfigureCorrelationIds()
         {
-            this.Event(() => this.OrderSubmitted, x => x.CorrelateById(c => c.Message.CorrelationId).SelectId(c => c.Message.CorrelationId));
-            this.Event(() => this.StockReserved, x => x.CorrelateById(c => c.Message.CorrelationId));
-            this.Event(() => this.PaymentProcessed, x => x.CorrelateById(c => c.Message.CorrelationId));
-            this.Event(() => this.OrderShipped, x => x.CorrelateById(c => c.Message.CorrelationId));
+            Event(() => OrderSubmitted, x => x
+                .CorrelateById(c => c.Message.CorrelationId)
+                .SelectId(c => c.Message.CorrelationId));
+            Event(() => StockReserved, x => x
+                .CorrelateById(c => c.Message.CorrelationId));
+            Event(() => PaymentProcessed, x => x
+                .CorrelateById(c => c.Message.CorrelationId));
+            Event(() => OrderShipped, x => x
+                .CorrelateById(c => c.Message.CorrelationId));
         }
 
         private EventActivityBinder<ProcessingOrderState, IOrderSubmitted> SetOrderSummitedHandler() =>
-            When(OrderSubmitted).Then(c => this.UpdateSagaState(c.Instance, c.Data.Order))
-                                .Then(c => this.logger.Info($"Order submitted to {c.Data.CorrelationId} received"))
-                                .ThenAsync(c => this.SendCommand<IReserveStock>("rabbitWarehouseQueue", c))
+            When(OrderSubmitted).Then(c => UpdateSagaState(c.Instance, c.Data.Order))
+                                .Then(c => _logger.LogInformation($"Order submitted to {c.Data.CorrelationId} received"))
+                                .ThenAsync(c => SendCommand<IReserveStock>(_rabbitmqOptions.WarehouseQueue, c))
                                 .TransitionTo(Processing);
 
 
         private EventActivityBinder<ProcessingOrderState, IStockReserved> SetStockReservedHandler() =>
-            When(StockReserved).Then(c => this.UpdateSagaState(c.Instance, c.Data.Order))
-                               .Then(c => this.logger.Info($"Stock reserved to {c.Data.CorrelationId} received"))
-                               .ThenAsync(c => this.SendCommand<IProcessPayment>("rabbitCashierQueue", c));
+            When(StockReserved).Then(c => UpdateSagaState(c.Instance, c.Data.Order))
+                               .Then(c => _logger.LogInformation($"Stock reserved to {c.Data.CorrelationId} received"))
+                               .ThenAsync(c => SendCommand<IProcessPayment>(_rabbitmqOptions.CashierQueue, c));
 
 
         private EventActivityBinder<ProcessingOrderState, IPaymentProcessed> SetPaymentProcessedHandler() =>
-            When(PaymentProcessed).Then(c => this.UpdateSagaState(c.Instance, c.Data.Order))
-                                  .Then(c => this.logger.Info($"Payment processed to {c.Data.CorrelationId} received"))
-                                  .ThenAsync(c => this.SendCommand<IShipOrder>("rabbitDispatcherQueue", c));
+            When(PaymentProcessed).Then(c => UpdateSagaState(c.Instance, c.Data.Order))
+                                  .Then(c => _logger.LogInformation($"Payment processed to {c.Data.CorrelationId} received"))
+                                  .ThenAsync(c => SendCommand<IShipOrder>(_rabbitmqOptions.DispatcherQueue, c));
 
 
         private EventActivityBinder<ProcessingOrderState, IOrderShipped> SetOrderShippedHandler() =>
             When(OrderShipped).Then(c =>
                                         {
-                                            this.UpdateSagaState(c.Instance, c.Data.Order);
+                                            UpdateSagaState(c.Instance, c.Data.Order);
                                             c.Instance.Order.Status = Status.Processed;
                                         })
                               .Publish(c => new OrderProcessed(c.Data.CorrelationId, c.Data.Order))
@@ -75,11 +82,11 @@ namespace SagasDemo.OrderProcessor.Services
         private async Task SendCommand<TCommand>(string endpointKey, BehaviorContext<ProcessingOrderState, IMessage> context)
             where TCommand : class, IMessage
         {
-            var sendEndpoint = await context.GetSendEndpoint(new Uri(ConfigurationManager.AppSettings[endpointKey]));
+            var sendEndpoint = await context.GetSendEndpoint(new Uri(endpointKey));
             await sendEndpoint.Send<TCommand>(new
             {
-                CorrelationId = context.Data.CorrelationId,
-                Order = context.Data.Order
+                context.Data.CorrelationId,
+                context.Data.Order
             });
         }
         public SagaState Processing { get; private set; }

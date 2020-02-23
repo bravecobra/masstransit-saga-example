@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 
-namespace SagasDemo
+namespace ServiceModel.DTOs
 {
     [Serializable]
     public class ShoppingCart

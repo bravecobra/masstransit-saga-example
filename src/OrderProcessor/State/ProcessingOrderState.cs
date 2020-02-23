@@ -1,17 +1,16 @@
-﻿using Automatonymous;
+﻿using System;
+using Automatonymous;
 using MassTransit.MongoDbIntegration.Saga;
 using MongoDB.Bson;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using ServiceModel.DTOs;
 
-namespace SagasDemo.OrderProcessor.State
+namespace OrderProcessor.State
 {
     public class ProcessingOrderState: SagaStateMachineInstance, IVersionedSaga
     {
         public ProcessingOrderState(Guid correlationId)
         {
-            this.CorrelationId = correlationId;
+            CorrelationId = correlationId;
         }
         public ObjectId Id { get; set; }
         public Order Order { get; set; }      

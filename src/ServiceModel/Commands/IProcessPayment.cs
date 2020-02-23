@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SagasDemo.Commands
+﻿namespace ServiceModel.Commands
 {
     public interface IProcessPayment: IMessage
     {

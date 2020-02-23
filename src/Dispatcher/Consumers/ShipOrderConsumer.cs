@@ -1,25 +1,23 @@
-﻿using Common.Logging;
+﻿using System.Threading.Tasks;
 using MassTransit;
-using SagasDemo.Commands;
-using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using ServiceModel.Commands;
+using ServiceModel.DTOs;
+using ServiceModel.Events;
 
-namespace SagasDemo.Dispatcher.Consumers
+namespace Dispatcher.Consumers
 {
     public class ShipOrderConsumer : IConsumer<IShipOrder>
     {
-        private readonly ILog logger;
+        private readonly ILogger<ShipOrderConsumer> _logger;
 
-        public ShipOrderConsumer()
+        public ShipOrderConsumer(ILogger<ShipOrderConsumer> logger)
         {
-            this.logger = LogManager.GetLogger<ShipOrderConsumer>();
+            _logger = logger;
         }
         public async Task Consume(ConsumeContext<IShipOrder> context)
         {
-            logger.Info($"Shipt order received {context.Message.CorrelationId}");
+            _logger.LogInformation($"Shipt order received {context.Message.CorrelationId}");
             await Task.Delay(2000);
             this.UpdateOrderState(context.Message.Order);
             await context.Publish<IOrderShipped>(new

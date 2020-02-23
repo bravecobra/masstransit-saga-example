@@ -1,25 +1,22 @@
-﻿using Common.Logging;
+﻿using System.Threading.Tasks;
 using MassTransit;
-using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using ServiceModel.Events;
 
-namespace SagasDemo.Generator.Consumers
+namespace SagasDemo.OrderGenerator.Consumers
 {
     public class OrderCancelledConsumer : IConsumer<IOrderCancelled>
     {
-        private readonly ILog logger;
+        private readonly ILogger<OrderCancelledConsumer> _logger;
 
-        public OrderCancelledConsumer()
+        public OrderCancelledConsumer(ILogger<OrderCancelledConsumer> logger)
         {
-            this.logger = LogManager.GetLogger<OrderCancelledConsumer>();
+            _logger = logger;
         }
 
         public async Task Consume(ConsumeContext<IOrderCancelled> context)
         {
-            this.logger.Info($"The order cancelled to {context.Message.CorrelationId} was received");
+            this._logger.LogInformation($"The order cancelled to {context.Message.CorrelationId} was received");
         }
     }
 }

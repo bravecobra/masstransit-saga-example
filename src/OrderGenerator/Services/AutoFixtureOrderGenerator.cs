@@ -1,9 +1,9 @@
-﻿using AutoFixture;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using AutoFixture;
+using ServiceModel.DTOs;
 
-namespace SagasDemo.Generator.Services
+namespace SagasDemo.OrderGenerator.Services
 {
     public class AutoFixtureOrderGenerator : IOrderGenerator
     {

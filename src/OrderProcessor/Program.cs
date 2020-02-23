@@ -1,33 +1,64 @@
-﻿using Common.Logging;
-using Common.Logging.Configuration;
-using Common.Logging.NLog;
-using System;
-using System.ServiceProcess;
+﻿using System;
+using System.Configuration;
+using System.Threading.Tasks;
+using MassTransit;
+using MassTransit.MongoDbIntegration;
+using MassTransit.Saga;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OrderProcessor.Services;
+using OrderProcessor.State;
 
-namespace SagasDemo.OrderProcessor
+
+namespace OrderProcessor
 {
     class Program
     {
-        static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            Console.WriteLine("Starting orden processor");
-            ConfigureLogger();
-            var service = new OrderProcessorService();
-            service.Start();
-            Console.WriteLine("Press any key to close...");
-            Console.ReadKey();
-            service.Stop();
+            await Host.CreateDefaultBuilder(args)
+                .ConfigureLogging(builder => builder.AddConsole().AddDebug())
+                .ConfigureServices((hostContext, services) => { ConfigureServices(services, hostContext); })
+                .RunConsoleAsync();
         }
 
-        private static void ConfigureLogger()
+
+        private static void ConfigureServices(IServiceCollection services, HostBuilderContext hostContext)
         {
-            var settings =  new NameValueCollection
+            services
+                .AddOptions()
+                .Configure<RabbitMqOptions>(options => hostContext.Configuration.GetSection("RabbitMQ").Bind(options))
+                .Configure<MongoDbOptions>(options => hostContext.Configuration.GetSection("MongoDb").Bind(options))
+                .AddMassTransit(x =>
                 {
-                        { "configType", "FILE" },
-                        { "configFile", "~/OrderProcessor.exe.nlog" }
-                };
-            LogManager.Adapter = new NLogLoggerFactoryAdapter(settings);
-            MassTransit.NLogIntegration.Logging.NLogLogger.Use();
+                    x.AddSagaStateMachine<OrderProcessorStateMachine, ProcessingOrderState>()
+                        .MongoDbRepository(r =>
+                        {
+                            var mongoDbSettings = hostContext.Configuration.GetSection("MongoDb").Get<MongoDbOptions>();
+                            r.Connection = mongoDbSettings.Host;
+                            r.DatabaseName = mongoDbSettings.Database;
+                            r.CollectionName = mongoDbSettings.Collection;
+                        });
+                    x.AddBus(provider => Bus.Factory.CreateUsingRabbitMq(cfg =>
+                    {
+                        var settings = provider.GetRequiredService<IOptions<RabbitMqOptions>>();
+                        var rabbitmqSettings = settings.Value;
+                        cfg.Host(rabbitmqSettings.Host, h =>
+                        {
+                            h.Username(rabbitmqSettings.User);
+                            h.Password(rabbitmqSettings.Password);
+                        });
+                        cfg.ReceiveEndpoint(rabbitmqSettings.InputQueue, e =>
+                        {
+                            e.StateMachineSaga(provider.GetService<OrderProcessorStateMachine>(),
+                                provider.GetService<ISagaRepository<ProcessingOrderState>>());
+                        });
+                    }));
+                })
+                .AddHostedService<BusService>();
         }
     }
 }

@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using ServiceModel.DTOs;
 
-namespace SagasDemo.Generator.Services
+namespace SagasDemo.OrderGenerator.Services
 {
     public interface IOrderGenerator
     {

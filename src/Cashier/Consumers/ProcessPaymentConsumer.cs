@@ -1,31 +1,32 @@
-﻿using Common.Logging;
+﻿using System.Threading.Tasks;
 using MassTransit;
-using SagasDemo.Commands;
-using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using ServiceModel.Commands;
+using ServiceModel.DTOs;
+using ServiceModel.Events;
 
-namespace SagasDemo.Cashier.Consumers
+namespace Cashier.Consumers
 {
-    public class ProcessPaymentConsumer:IConsumer<IProcessPayment>
+    public class ProcessPaymentConsumer: IConsumer<IProcessPayment>
     {
-        private readonly ILog logger;
-        public ProcessPaymentConsumer()
+        private readonly ILogger<ProcessPaymentConsumer> _logger;
+
+        public ProcessPaymentConsumer(ILogger<ProcessPaymentConsumer> logger)
         {
-            this.logger = LogManager.GetLogger<ProcessPaymentConsumer>();
+            _logger = logger;
         }
+
         public async Task Consume(ConsumeContext<IProcessPayment> context)
         {
-            this.logger.Info($"Process payment command receives to {context.Message.CorrelationId}");
+            _logger.LogInformation($"Process payment command receives to {context.Message.CorrelationId}");
             await Task.Delay(2000);
             this.UpdateOrderState(context.Message.Order);
             await context.Publish<IPaymentProcessed>(new
             {
-                CorrelationId = context.Message.CorrelationId,
+                CorrelationId = context.Message.CorrelationId, 
                 Order = context.Message.Order
             });
+            _logger.LogInformation($"Payment for customer {context.Message.Order.Customer.Name} processed to {context.Message.CorrelationId}");
         }
 
         private void UpdateOrderState(Order order) =>

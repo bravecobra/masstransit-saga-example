@@ -1,0 +1,34 @@
+version: "3.5"
+
+services:
+  mongo:
+    image: mongo:4
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - masstransitsaga
+    volumes:
+      - mongo:/data/db
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - masstransitsaga
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+
+networks:
+  masstransitsaga:
+    name: masstransit-saga
+
+volumes:
+  mongo:
+    driver: local
+  rabbitmq:
+    driver: local
+  redis:
+    driver: local

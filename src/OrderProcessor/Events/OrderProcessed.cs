@@ -1,17 +1,16 @@
-﻿using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System;
+using ServiceModel.DTOs;
+using ServiceModel.Events;
 
-namespace SagasDemo.OrderProcessor.Events
+namespace OrderProcessor.Events
 {
     [Serializable]
     public class OrderProcessed : IOrderProcessed
     {
         public OrderProcessed(Guid correlationId, Order order)
         {
-            this.CorrelationId = correlationId;
-            this.Order = order;
+            CorrelationId = correlationId;
+            Order = order;
         }
         public Guid CorrelationId { get; }
 

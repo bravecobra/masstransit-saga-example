@@ -1,76 +1,75 @@
-﻿using Common.Logging;
-using Common.Logging.Configuration;
-using Common.Logging.NLog;
-using MassTransit;
-using MassTransit.Util;
-using SagasDemo.Commands;
-using SagasDemo.Events;
-using SagasDemo.Generator.Services;
-using SagasDemo.Generator.Consumers;
-using System;
+﻿using System;
 using System.Configuration;
+using System.Threading;
+using System.Threading.Tasks;
+using MassTransit;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SagasDemo.OrderGenerator.Consumers;
+using ServiceModel.Events;
 
-namespace SagasDemo.Generator
+namespace SagasDemo.OrderGenerator
 {
     class Program
     {
         private static bool continueRunning = true;
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            ConfigureLogger();
-            Console.CancelKeyPress += CancelKeyPressed;
-            var bus = CreateBust();
-            Console.WriteLine("Starting orden generator");
-            Console.WriteLine("Enter to send..");
-            Console.ReadLine();
-            while (continueRunning)
-            {             
-                var order = OrderGenerator.Currrent.Generate();
-                bus.Publish<IOrderSubmitted>(new { CorrelationId = Guid.NewGuid(), Order = order });
-                Console.WriteLine(order.ToString());
-                Console.ReadLine();
-            }
+            await Host.CreateDefaultBuilder(args)
+                .ConfigureLogging(builder => builder.AddConsole().AddDebug())
+                .ConfigureServices((hostContext, services) => { ConfigureServices(services, hostContext); })
+                .RunConsoleAsync();
         }
-        private static void ConfigureLogger()
+        private static void ConfigureServices(IServiceCollection services, HostBuilderContext hostContext)
         {
-            var settings = new NameValueCollection
+            services
+                .AddOptions()
+                .Configure<RabbitMqOptions>(options =>
+                    hostContext.Configuration.GetSection("RabbitMQ").Bind(options))
+                .AddMassTransit(x =>
                 {
-                        { "configType", "FILE" },
-                        { "configFile", "~/OrderGenerator.exe.nlog" }
-                };
-            LogManager.Adapter = new NLogLoggerFactoryAdapter(settings);
-            MassTransit.NLogIntegration.Logging.NLogLogger.Use();
+
+                    x.AddConsumer<OrderCancelledConsumer>();
+                    x.AddConsumer<OrderProcessedConsumer>();
+                    x.AddBus(provider => Bus.Factory.CreateUsingRabbitMq(cfg =>
+                    {
+                        var settings = provider.GetRequiredService<IOptions<RabbitMqOptions>>();
+                        var rabbitmqSettings = settings.Value;
+                        cfg.Host(rabbitmqSettings.Host, h =>
+                        {
+                            h.Username(rabbitmqSettings.User);
+                            h.Password(rabbitmqSettings.Password);
+                        });
+                        cfg.ReceiveEndpoint(rabbitmqSettings.InputQueue, e =>
+                        {
+                            e.ConfigureConsumer<OrderCancelledConsumer>(provider);
+                            e.ConfigureConsumer<OrderProcessedConsumer>(provider);
+                        });
+                    }));
+                })
+                .AddHostedService<BusService>()
+                .AddHostedService<ConsoleApplication>();
         }
 
-        private static void CancelKeyPressed(object sender, ConsoleCancelEventArgs e)
-        {
-            e.Cancel = true;
-            continueRunning = false;
-        }
-        private static IBus CreateBust()
-        {
-            var rabbitHost = new Uri(ConfigurationManager.AppSettings["rabbitHost"]);
-            var user = ConfigurationManager.AppSettings["rabbitUser"];
-            var password = ConfigurationManager.AppSettings["rabbitPassword"];
-            var inputQueue = ConfigurationManager.AppSettings["rabbitInputQueue"];
-            var bus = MassTransit.Bus.Factory.CreateUsingRabbitMq(configurator =>
-            {                
-                var host = configurator.Host(rabbitHost, h =>
-                {
-                    h.Username(user);
-                    h.Password(password);
-                });
-
-                configurator.ReceiveEndpoint(host, inputQueue, c =>
-                  {
-                      c.Consumer(() => new OrderCancelledConsumer());
-                      c.Consumer(() => new OrderProcessedConsumer());
-                  });
-            });
-
-           TaskUtil.Await(() => bus.StartAsync());
-            return bus;
-        }
-
+        // private static Task GenerateOrders(IServiceProvider provider, CancellationToken cancellationToken)
+        // {
+        //     Console.WriteLine("Enter to send..");
+        //     Console.ReadLine();
+        //
+        //     var bus = provider.GetRequiredService<IBusControl>();
+        //
+        //     while (!cancellationToken.IsCancellationRequested)
+        //     {             
+        //         var order = Services.OrderGenerator.Currrent.Generate();
+        //         bus.Publish<IOrderSubmitted>(new { CorrelationId = Guid.NewGuid(), Order = order }, cancellationToken);
+        //         Console.WriteLine(order.ToString());
+        //         Console.ReadLine();
+        //     }
+        //
+        //     return Task.CompletedTask;
+        // }
     }
 }

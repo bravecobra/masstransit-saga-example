@@ -1,27 +1,26 @@
-﻿using Common.Logging;
+﻿using System.Threading.Tasks;
 using MassTransit;
-using SagasDemo.Commands;
-using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using ServiceModel.Commands;
+using ServiceModel.DTOs;
+using ServiceModel.Events;
+// ReSharper disable RedundantAnonymousTypePropertyName
 
-namespace SagasDemo.Warehouse.Consumers
+namespace Warehouse.Consumers
 {
     public class ReserveStockConsumer : IConsumer<IReserveStock>
     {
-        private readonly ILog logger;
+        private readonly ILogger<ReserveStockConsumer> _logger;
 
-        public ReserveStockConsumer()
+        public ReserveStockConsumer(ILogger<ReserveStockConsumer> logger)
         {
-            this.logger = LogManager.GetLogger<ReserveStockConsumer>();
+            _logger = logger;
         }
         public async Task Consume(ConsumeContext<IReserveStock> context)
         {
-            this.logger.Info($"Reserve stock to {context.Message.CorrelationId} was received");
+            _logger.LogInformation($"Reserve stock to {context.Message.CorrelationId} was received");
             await Task.Delay(2000);
-            this.UpdateOrderState(context.Message.Order);
+            UpdateOrderState(context.Message.Order);
             await context.Publish<IStockReserved>(new
             {
                 CorrelationId = context.Message.CorrelationId,
@@ -29,7 +28,6 @@ namespace SagasDemo.Warehouse.Consumers
             });
         }
 
-        private void UpdateOrderState(Order order) =>
-         order.Status = Status.StockReserved;
+        private void UpdateOrderState(Order order) => order.Status = Status.StockReserved;
     }
 }

@@ -1,25 +1,22 @@
-﻿using Common.Logging;
+﻿using System.Threading.Tasks;
 using MassTransit;
-using SagasDemo.Events;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using ServiceModel.Events;
 
-namespace SagasDemo.Generator.Consumers
+namespace SagasDemo.OrderGenerator.Consumers
 {
     public class OrderProcessedConsumer : IConsumer<IOrderProcessed>
     {
-        private readonly ILog logger;
+        private readonly ILogger<OrderProcessedConsumer> _logger;
 
-        public OrderProcessedConsumer()
+        public OrderProcessedConsumer(ILogger<OrderProcessedConsumer> logger)
         {
-            this.logger = LogManager.GetLogger<OrderProcessedConsumer>();
+            _logger = logger;
         }
 
         public async Task Consume(ConsumeContext<IOrderProcessed> context)
         {
-            this.logger.Info($"Order processed to {context.Message.CorrelationId} was received");
+            _logger.LogInformation($"Order processed to {context.Message.CorrelationId} was received");
         }
     }
 }

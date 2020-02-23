@@ -2,8 +2,6 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
-    <ApplicationIcon />
-    <StartupObject />
+    <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 </Project>
