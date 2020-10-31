@@ -30,7 +30,7 @@ namespace Cashier.Consumers
         }
 
         private void UpdateOrderState(Order order) =>
-            order.Status = Status.Paymented;
+            order.Status = Status.Payed;
         
     }
 }

@@ -7,7 +7,7 @@ namespace ServiceModel.DTOs
     {
         StockReserved,
         Submitted,
-        Paymented,
+        Payed,
         Shipped, 
         Processed,
     }
